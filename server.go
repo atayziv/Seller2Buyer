@@ -5,67 +5,12 @@ import (
 	"encoding/json"
 	"github.com/go-redis/redis/v8"
 	"github.com/go-redis/redis_rate/v9"
+	"github.com/risecodes/openrtb/openrtb2"
 	"log"
 	"net/http"
 	"os"
 	"sync"
 )
-
-type BidRequest struct {
-	Site   Site   `json:"site"`
-	ID     string `json:"id"`
-	Imp    []Imp  `json:"imp"`
-	Device Device `json:"device"`
-	User   User   `json:"user"`
-}
-
-type Site struct {
-	Name      string    `json:"name"`
-	Domain    string    `json:"domain"`
-	Page      string    `json:"page"`
-	Content   Content   `json:"content"`
-	Publisher Publisher `json:"publisher"`
-}
-
-type Publisher struct {
-	Name string `json:"name"`
-}
-
-type Content struct {
-	Title string `json:"title"`
-}
-
-type Imp struct {
-	ID     string  `json:"id"`
-	Banner *Banner `json:"banner,omitempty"`
-	Video  *Video  `json:"video,omitempty"`
-}
-
-type Banner struct {
-	W        int `json:"w"`
-	H        int `json:"h"`
-	Pos      int `json:"pos"`
-	Topframe int `json:"topframe"`
-}
-
-type Video struct {
-	W    int `json:"w"`
-	H    int `json:"h"`
-	Pos  int `json:"pos"`
-	Skip int `json:"skip"`
-}
-
-type Device struct {
-	IP    string `json:"ip"`
-	Model string `json:"model"`
-	Make  string `json:"make"`
-	OS    string `json:"os"`
-	UA    string `json:"ua"`
-}
-
-type User struct {
-	ID string `json:"id"`
-}
 
 var (
 	logFile     *os.File
@@ -76,7 +21,7 @@ var (
 )
 
 func init() {
-	log.Println("Initializing log file and Redis client.")
+	log.Println("Initializing log file and Redis client...")
 
 	var err error
 	logFile, err = os.OpenFile("bid_requests.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0666)
@@ -107,7 +52,7 @@ func main() {
 }
 
 func handleBidRequest(w http.ResponseWriter, r *http.Request) {
-	log.Println("Handling a new bid request!")
+	log.Println("Handling a new bid request...")
 
 	if r.Method != http.MethodPost {
 		http.Error(w, "Invalid request method", http.StatusMethodNotAllowed)
@@ -126,13 +71,13 @@ func handleBidRequest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var bidRequest BidRequest
+	var bidRequest openrtb2.BidRequest
 	if err := json.NewDecoder(r.Body).Decode(&bidRequest); err != nil {
 		http.Error(w, "Bad request", http.StatusBadRequest)
 		return
 	}
 
-	log.Printf("Processing bid request for Site ID: %s, Device IP: %s", bidRequest.Site.Name, bidRequest.Device.IP)
+	log.Printf("Processing bid request for Site ID: %s, Device IP: %s", bidRequest.Site.ID, bidRequest.Device.IP)
 
 	go logBidRequest(bidRequest)
 	go incrementRequestCount()
@@ -140,11 +85,11 @@ func handleBidRequest(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
-func logBidRequest(bidRequest BidRequest) {
+func logBidRequest(bidRequest openrtb2.BidRequest) {
 	mu.Lock()
 	defer mu.Unlock()
 
-	log.Println("Logging the bid request into the log file.")
+	log.Println("Logging the bid request into the log file...")
 
 	logData := struct {
 		ID       string `json:"id"`
