@@ -76,6 +76,8 @@ var (
 )
 
 func init() {
+	log.Println("Initializing log file and Redis client.")
+
 	var err error
 	logFile, err = os.OpenFile("bid_requests.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0666)
 	if err != nil {
@@ -93,14 +95,20 @@ func init() {
 	}
 
 	rateLimiter = redis_rate.NewLimiter(rdb)
+
+	log.Println("Initialization complete.")
 }
 
 func main() {
+	log.Println("Listening on port 8080...")
+
 	http.HandleFunc("/bid_request", handleBidRequest)
 	log.Fatal(http.ListenAndServe(":8080", nil))
 }
 
 func handleBidRequest(w http.ResponseWriter, r *http.Request) {
+	log.Println("Handling a new bid request!")
+
 	if r.Method != http.MethodPost {
 		http.Error(w, "Invalid request method", http.StatusMethodNotAllowed)
 		return
@@ -114,6 +122,7 @@ func handleBidRequest(w http.ResponseWriter, r *http.Request) {
 	}
 	if res.Allowed == 0 {
 		http.Error(w, "Too many requests", http.StatusTooManyRequests)
+		log.Println("Too many requests - rate limit exceeded.")
 		return
 	}
 
@@ -122,6 +131,8 @@ func handleBidRequest(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Bad request", http.StatusBadRequest)
 		return
 	}
+
+	log.Printf("Processing bid request for Site ID: %s, Device IP: %s", bidRequest.Site.Name, bidRequest.Device.IP)
 
 	go logBidRequest(bidRequest)
 	go incrementRequestCount()
@@ -132,6 +143,8 @@ func handleBidRequest(w http.ResponseWriter, r *http.Request) {
 func logBidRequest(bidRequest BidRequest) {
 	mu.Lock()
 	defer mu.Unlock()
+
+	log.Println("Logging the bid request into the log file.")
 
 	logData := struct {
 		ID       string `json:"id"`
@@ -164,5 +177,14 @@ func incrementRequestCount() {
 	err := rdb.Incr(ctx, "request_count").Err()
 	if err != nil {
 		log.Printf("Failed to increment request count: %v", err)
+		return
 	}
+
+	count, err := rdb.Get(ctx, "request_count").Int()
+	if err != nil {
+		log.Printf("Failed to get request count: %v", err)
+		return
+	}
+
+	log.Printf("Number of bid requests has been updated: %d", count)
 }
