@@ -3,21 +3,23 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"github.com/go-redis/redis/v8"
-	"github.com/go-redis/redis_rate/v9"
-	"github.com/risecodes/openrtb/openrtb2"
 	"log"
 	"net/http"
 	"os"
 	"sync"
+
+	"github.com/go-redis/redis/v8"
+	"github.com/go-redis/redis_rate/v9"
+	"github.com/risecodes/openrtb/openrtb2"
 )
 
 var (
-	logFile     *os.File
-	mu          sync.Mutex
-	rdb         *redis.Client
-	rateLimiter *redis_rate.Limiter
-	ctx         = context.Background()
+	logFile      *os.File
+	mu           sync.Mutex
+	rdb          *redis.Client
+	rateLimiter  *redis_rate.Limiter
+	ctx          = context.Background()
+	bidRequestCh chan openrtb2.BidRequest
 )
 
 func init() {
@@ -41,26 +43,29 @@ func init() {
 
 	rateLimiter = redis_rate.NewLimiter(rdb)
 
+	bidRequestCh = make(chan openrtb2.BidRequest, 100)
+
 	log.Println("Initialization complete.")
 }
 
 func main() {
 	log.Println("Listening on port 8080...")
 
+	go consumeBidRequests()
+
 	http.HandleFunc("/bid_request", handleBidRequest)
 	log.Fatal(http.ListenAndServe(":8080", nil))
 }
 
 func handleBidRequest(w http.ResponseWriter, r *http.Request) {
-	log.Println("Handling a new bid request...")
+	log.Println("Handling a new bid request!")
 
 	if r.Method != http.MethodPost {
 		http.Error(w, "Invalid request method", http.StatusMethodNotAllowed)
 		return
 	}
 
-	// Rate limiting: limit to 50 requests at a time
-	res, err := rateLimiter.Allow(ctx, "global", redis_rate.PerMinute(50)) // limit to 50 requests per minute
+	res, err := rateLimiter.Allow(ctx, "global", redis_rate.PerMinute(50))
 	if err != nil {
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
@@ -79,17 +84,23 @@ func handleBidRequest(w http.ResponseWriter, r *http.Request) {
 
 	log.Printf("Processing bid request for Site ID: %s, Device IP: %s", bidRequest.Site.ID, bidRequest.Device.IP)
 
-	go logBidRequest(bidRequest)
-	go incrementRequestCount()
+	bidRequestCh <- bidRequest
 
 	w.WriteHeader(http.StatusOK)
+}
+
+func consumeBidRequests() {
+	for bidRequest := range bidRequestCh {
+		go logBidRequest(bidRequest)
+		go incrementRequestCount(bidRequest)
+	}
 }
 
 func logBidRequest(bidRequest openrtb2.BidRequest) {
 	mu.Lock()
 	defer mu.Unlock()
 
-	log.Println("Logging the bid request into the log file...")
+	log.Println("Logging the bid request into the log file.")
 
 	logData := struct {
 		ID       string `json:"id"`
@@ -118,18 +129,30 @@ func logBidRequest(bidRequest openrtb2.BidRequest) {
 	}
 }
 
-func incrementRequestCount() {
-	err := rdb.Incr(ctx, "request_count").Err()
-	if err != nil {
-		log.Printf("Failed to increment request count: %v", err)
-		return
-	}
+func incrementRequestCount(bidRequest openrtb2.BidRequest) {
+	var key string
 
-	count, err := rdb.Get(ctx, "request_count").Int()
-	if err != nil {
-		log.Printf("Failed to get request count: %v", err)
-		return
-	}
+	for _, imp := range bidRequest.Imp {
+		if imp.Banner != nil {
+			key = "banner_request_count"
+		} else if imp.Video != nil {
+			key = "video_request_count"
+		}
 
-	log.Printf("Number of bid requests has been updated: %d", count)
+		if key != "" {
+			err := rdb.Incr(ctx, key).Err()
+			if err != nil {
+				log.Printf("Failed to increment %s: %v", key, err)
+				continue
+			}
+
+			count, err := rdb.Get(ctx, key).Int()
+			if err != nil {
+				log.Printf("Failed to get %s: %v", key, err)
+				continue
+			}
+
+			log.Printf("Number of %s has been updated: %d", key, count)
+		}
+	}
 }
