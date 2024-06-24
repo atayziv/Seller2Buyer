@@ -2,10 +2,11 @@ package bid_request
 
 import (
 	"encoding/json"
-	"github.com/risecodes/openrtb/openrtb2"
 	"log"
 	"os"
 	"sync"
+
+	"github.com/risecodes/openrtb/openrtb2"
 )
 
 var (
@@ -17,7 +18,8 @@ func InitLogger() {
 	var err error
 	logFile, err = os.OpenFile("bid_requests.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0666)
 	if err != nil {
-		log.Fatalf("Failed to open log file: %v", err)
+		log.Printf("Failed to open log file: %v", err)
+		return
 	}
 
 	log.Println("Logger initialized.")

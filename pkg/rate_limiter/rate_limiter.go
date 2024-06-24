@@ -1,9 +1,11 @@
 package rate_limiter
 
 import (
-	"Practice/pkg/storage"
-	"github.com/go-redis/redis_rate/v9"
 	"log"
+
+	"Practice/pkg/storage"
+
+	"github.com/go-redis/redis_rate/v9"
 )
 
 func InitRateLimiter() {

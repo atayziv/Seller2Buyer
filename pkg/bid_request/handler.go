@@ -1,12 +1,14 @@
 package bid_request
 
 import (
-	"Practice/pkg/storage"
 	"encoding/json"
-	"github.com/go-redis/redis_rate/v9"
-	"github.com/risecodes/openrtb/openrtb2"
 	"log"
 	"net/http"
+
+	"github.com/go-redis/redis_rate/v9"
+	"github.com/risecodes/openrtb/openrtb2"
+
+	"Practice/pkg/storage"
 )
 
 var (
@@ -25,7 +27,7 @@ func HandleBidRequest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	limit := redis_rate.PerMinute(50)
+	limit := redis_rate.PerMinute(3)
 	res, err := storage.RateLimiter.Allow(storage.Ctx, "global", limit)
 	if err != nil {
 		http.Error(w, "Internal server error", http.StatusInternalServerError)

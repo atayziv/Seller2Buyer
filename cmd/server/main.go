@@ -1,11 +1,12 @@
 package main
 
 import (
+	"log"
+	"net/http"
+
 	"Practice/pkg/bid_request"
 	"Practice/pkg/rate_limiter"
 	"Practice/pkg/storage"
-	"log"
-	"net/http"
 )
 
 func main() {
@@ -20,5 +21,7 @@ func main() {
 	go bid_request.ConsumeBidRequests()
 
 	http.HandleFunc("/bid_request", bid_request.HandleBidRequest)
-	log.Fatal(http.ListenAndServe(":8080", nil))
+	if err := http.ListenAndServe(":8080", nil); err != nil {
+		log.Printf("Server error: %v", err)
+	}
 }
