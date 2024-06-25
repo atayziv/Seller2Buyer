@@ -11,7 +11,6 @@ import (
 var (
 	Rdb         *redis.Client
 	RateLimiter *redis_rate.Limiter
-	Ctx         = context.Background()
 )
 
 func InitRedis() {
@@ -19,7 +18,7 @@ func InitRedis() {
 		Addr: "localhost:6379",
 	})
 
-	_, err := Rdb.Ping(Ctx).Result()
+	_, err := Rdb.Ping(context.Background()).Result()
 	if err != nil {
 		log.Printf("Failed to connect to Redis: %v", err)
 		return

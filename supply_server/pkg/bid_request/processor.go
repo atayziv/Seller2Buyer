@@ -1,6 +1,8 @@
 package bid_request
 
 import (
+	"context"
+
 	"Practice/supply_server/pkg/storage"
 
 	"log"
@@ -9,29 +11,30 @@ import (
 )
 
 func incrementRequestCount(bidRequest openrtb2.BidRequest) {
-	var key string
-
 	for _, imp := range bidRequest.Imp {
-		if imp.Banner != nil {
+		var key string
+
+		switch {
+		case imp.Banner != nil:
 			key = "banner_request_count"
-		} else if imp.Video != nil {
+		case imp.Video != nil:
 			key = "video_request_count"
+		default:
+			continue
 		}
 
-		if key != "" {
-			err := storage.Rdb.Incr(storage.Ctx, key).Err()
-			if err != nil {
-				log.Printf("Failed to increment %s: %v", key, err)
-				continue
-			}
-
-			count, err := storage.Rdb.Get(storage.Ctx, key).Int()
-			if err != nil {
-				log.Printf("Failed to get %s: %v", key, err)
-				continue
-			}
-
-			log.Printf("Number of %s has been updated: %d", key, count)
+		err := storage.Rdb.Incr(context.Background(), key).Err()
+		if err != nil {
+			log.Printf("Failed to increment %s: %v", key, err)
+			continue
 		}
+
+		count, err := storage.Rdb.Get(context.Background(), key).Int()
+		if err != nil {
+			log.Printf("Failed to get %s: %v", key, err)
+			continue
+		}
+
+		log.Printf("Number of %s has been updated: %d", key, count)
 	}
 }

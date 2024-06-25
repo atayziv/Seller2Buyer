@@ -25,7 +25,7 @@ func InitLogger() {
 	log.Println("Buyer logger initialized.")
 }
 
-func LogBidResponse(bidResponse openrtb2.BidResponse) {
+func LogBidResponse(bidResponse *openrtb2.BidResponse) {
 	mu.Lock()
 	defer mu.Unlock()
 

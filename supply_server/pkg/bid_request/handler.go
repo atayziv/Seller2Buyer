@@ -1,6 +1,7 @@
 package bid_request
 
 import (
+	"context"
 	"encoding/json"
 	"log"
 	"net/http"
@@ -12,56 +13,65 @@ import (
 )
 
 var (
-	bidRequestCh chan openrtb2.BidRequest
+	bidRequestCh = make(chan openrtb2.BidRequest)
 )
-
-func init() {
-	bidRequestCh = make(chan openrtb2.BidRequest, 100)
-}
 
 func HandleBidRequest(w http.ResponseWriter, r *http.Request) {
 	log.Println("Handling a new bid request!")
 
+	if !checkRateLimit(w) {
+		return
+	}
+
+	bidRequest, err := decodeBidRequest(w, r)
+	if err != nil {
+		return
+	}
+
+	log.Printf("Processing bid request for Site ID: %s, Floor price: %.2f", bidRequest.Site.ID, bidRequest.Imp[0].BidFloor)
+
+	bidResponse, err := send2Buyer(bidRequest)
+	if err != nil {
+		http.Error(w, "Failed to get bid response from buyer", http.StatusInternalServerError)
+		return
+	}
+
+	bidRequestCh <- *bidRequest
+
+	handleBidResponse(w, bidResponse)
+}
+
+func checkRateLimit(w http.ResponseWriter) bool {
 	limit := redis_rate.PerMinute(3)
-	res, err := storage.RateLimiter.Allow(storage.Ctx, "global", limit)
+	res, err := storage.RateLimiter.Allow(context.Background(), "global", limit)
 	if err != nil {
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
-		return
+		return false
 	}
 	if res.Allowed == 0 {
 		http.Error(w, "Too many requests", http.StatusTooManyRequests)
 		log.Println("Too many requests - rate limit exceeded.")
-		return
+		return false
 	}
+	return true
+}
 
+func decodeBidRequest(w http.ResponseWriter, r *http.Request) (*openrtb2.BidRequest, error) {
 	var bidRequest openrtb2.BidRequest
 	if err := json.NewDecoder(r.Body).Decode(&bidRequest); err != nil {
 		http.Error(w, "Bad request", http.StatusBadRequest)
-		return
+		return nil, err
 	}
-
-	log.Printf("Processing bid request for Site ID: %s, Floor price: %f", bidRequest.Site.ID, bidRequest.Imp[0].BidFloor)
-
-	bidRequestCh <- bidRequest
-
-	w.WriteHeader(http.StatusOK)
+	return &bidRequest, nil
 }
 
-func HandleBidResponse(w http.ResponseWriter, r *http.Request) {
-	var bidResponse openrtb2.BidResponse
-	if err := json.NewDecoder(r.Body).Decode(&bidResponse); err != nil {
-		http.Error(w, "Bad request", http.StatusBadRequest)
-		return
-	}
-	log.Printf("Received bid response with ID: %s, Buyer offer: %f", bidResponse.ID, bidResponse.SeatBid[0].Bid[0].Price)
-
+func handleBidResponse(w http.ResponseWriter, bidResponse *openrtb2.BidResponse) {
 	responseData, err := json.Marshal(bidResponse)
 	if err != nil {
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
 
-	// Set content type and write response data
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	if _, err := w.Write(responseData); err != nil {
@@ -73,6 +83,5 @@ func ConsumeBidRequests() {
 	for bidRequest := range bidRequestCh {
 		go logBidRequest(bidRequest)
 		go incrementRequestCount(bidRequest)
-		go send2Buyer(bidRequest)
 	}
 }

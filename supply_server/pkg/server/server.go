@@ -4,10 +4,10 @@ import (
 	"log"
 	"net/http"
 
+	"github.com/gorilla/mux"
+
 	"Practice/supply_server/pkg/bid_request"
 	"Practice/supply_server/pkg/middleware"
-
-	"github.com/gorilla/mux"
 )
 
 type Server struct {
@@ -28,7 +28,6 @@ func NewServer() *Server {
 
 func (s *Server) mapRoutes() {
 	s.Router.HandleFunc("/bid_request", bid_request.HandleBidRequest).Methods("POST")
-	s.Router.HandleFunc("/bid_response", bid_request.HandleBidResponse).Methods("POST")
 	s.Router.Use(middleware.Validate)
 }
 

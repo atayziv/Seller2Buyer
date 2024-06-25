@@ -10,12 +10,8 @@ import (
 )
 
 var (
-	bidResponseCh chan openrtb2.BidResponse
+	bidResponseCh = make(chan openrtb2.BidResponse)
 )
-
-func init() {
-	bidResponseCh = make(chan openrtb2.BidResponse, 100)
-}
 
 func HandleBidRequest(w http.ResponseWriter, r *http.Request) {
 	log.Println("Buyer server handling a new bid request!")
@@ -45,7 +41,18 @@ func HandleBidRequest(w http.ResponseWriter, r *http.Request) {
 
 	bidResponseCh <- bidResponse
 
+	responseData, err := json.Marshal(bidResponse)
+	if err != nil {
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
+	if _, err := w.Write(responseData); err != nil {
+		log.Printf("Error writing bid response: %v", err)
+	}
+
 }
 
 func generatePrice(price float64) float64 {
@@ -54,7 +61,6 @@ func generatePrice(price float64) float64 {
 
 func ProduceBidResponses() {
 	for bidResponse := range bidResponseCh {
-		go LogBidResponse(bidResponse)
-		go ReturnBidResponse(bidResponse)
+		go LogBidResponse(&bidResponse)
 	}
 }
