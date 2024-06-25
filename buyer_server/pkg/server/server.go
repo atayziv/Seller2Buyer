@@ -4,8 +4,7 @@ import (
 	"log"
 	"net/http"
 
-	"Practice/pkg/bid_request"
-	"Practice/pkg/middleware"
+	"Practice/buyer_server/pkg/bid_response"
 
 	"github.com/gorilla/mux"
 )
@@ -20,19 +19,18 @@ func NewServer() *Server {
 	s.Router = mux.NewRouter()
 	s.mapRoutes()
 	s.Http = &http.Server{
-		Addr:    ":8080",
+		Addr:    ":8081",
 		Handler: s.Router,
 	}
 	return s
 }
 
 func (s *Server) mapRoutes() {
-	s.Router.HandleFunc("/bid_request", bid_request.HandleBidRequest).Methods("POST")
-	s.Router.Use(middleware.Validate)
+	s.Router.HandleFunc("/bid_response", bid_response.HandleBidRequest).Methods("POST")
 }
 
 func (s *Server) Start() {
-	log.Println("Listening on port 8080...")
+	log.Println("Listening on port 8081...")
 	if err := s.Http.ListenAndServe(); err != nil {
 		log.Printf("Server error: %v", err)
 	}

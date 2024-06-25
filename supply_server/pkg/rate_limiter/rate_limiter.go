@@ -3,7 +3,7 @@ package rate_limiter
 import (
 	"log"
 
-	"Practice/pkg/storage"
+	"Practice/supply_server/pkg/storage"
 
 	"github.com/go-redis/redis_rate/v9"
 )

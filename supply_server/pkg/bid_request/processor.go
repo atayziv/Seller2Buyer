@@ -1,9 +1,11 @@
 package bid_request
 
 import (
-	"Practice/pkg/storage"
-	"github.com/risecodes/openrtb/openrtb2"
+	"Practice/supply_server/pkg/storage"
+
 	"log"
+
+	"github.com/risecodes/openrtb/openrtb2"
 )
 
 func incrementRequestCount(bidRequest openrtb2.BidRequest) {
